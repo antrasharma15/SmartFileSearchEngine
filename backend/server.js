@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import { performance } from "node:perf_hooks";
 import { scanFolder } from "./scanner.js";
 import SearchEngine from "./searchEngine.js";
 
@@ -26,32 +27,58 @@ app.get("/", (req, res) => {
 });
 
 app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", message: "Search API is healthy" });
+    const isIndexed = Boolean(engine.indexed);
+    res.json({
+        status: "ok",
+        message: "Search API is healthy",
+        indexed: isIndexed,
+        folderPath: engine.folderPath || null,
+        totalFiles: isIndexed ? engine.metadata.getSize() : 0,
+        scanTimeMs: engine.lastScanTimeMs || 0,
+        indexTimeMs: engine.lastIndexTimeMs || 0,
+        stats: isIndexed ? engine.getStats() : null
+    });
 });
 
 // Scan a folder and build the index
 app.post("/api/index", async (req, res) => {
-    try {
-        const { folderPath } = req.body;
+  try {
+    const { folderPath } = req.body;
 
-        if (!folderPath) {
-            return res.status(400).json({
-                error: "Please provide a folder path."
-            });
-        }
-
-        const files = await scanFolder(folderPath);
-        const stats = engine.buildIndex(files);
-
-        res.json({
-            message: "Folder indexed successfully!",
-            stats
-        });
-    } catch (error) {
-        res.status(500).json({
-            error: error.message
-        });
+    if (!folderPath) {
+      return res.status(400).json({
+        error: "Please provide a folder path."
+      });
     }
+
+    // Measure folder scanning time
+    const scanStart = performance.now();
+    const files = await scanFolder(folderPath);
+    const scanEnd = performance.now();
+
+    // Measure DSA index construction time
+    const indexStart = performance.now();
+    const indexStats = engine.buildIndex(files);
+    const indexEnd = performance.now();
+
+    engine.folderPath = folderPath;
+    engine.lastScanTimeMs = Number((scanEnd - scanStart).toFixed(3));
+    engine.lastIndexTimeMs = Number((indexEnd - indexStart).toFixed(3));
+
+    res.json({
+      message: "Folder indexed successfully!",
+      totalFiles: files.length,
+      scanTimeMs: engine.lastScanTimeMs,
+      indexTimeMs: engine.lastIndexTimeMs,
+      indexStats,
+      stats: indexStats
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      error: error.message
+    });
+  }
 });
 
 // Search indexed filenames
@@ -61,6 +88,7 @@ app.get("/api/search", (req, res) => {
 
         if (!engine.indexed) {
             return res.status(400).json({
+                indexed: false,
                 error: "Please index a folder first by clicking 'Index Folder'!"
             });
         }
@@ -71,7 +99,18 @@ app.get("/api/search", (req, res) => {
             mode
         );
 
-        res.json(results);
+        const linearResults = engine.linearSearch(
+            q,
+            Number(limit)
+        );
+
+        res.json({
+            ...results,
+            indexed: true,
+            totalFiles: engine.metadata.getSize(),
+            linearSearchTimeMs: linearResults.searchTimeMs,
+            linearTotalMatches: linearResults.totalMatches
+        });
     } catch (error) {
         res.status(500).json({
             error: error.message

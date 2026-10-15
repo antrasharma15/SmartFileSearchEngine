@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
+    "server": "node --watch backend/server.js",
+    "backend": "node --watch backend/server.js",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

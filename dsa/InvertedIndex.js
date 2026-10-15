@@ -47,7 +47,8 @@ export class InvertedIndex {
    */
   tokenize(text) {
     if (!text || typeof text !== 'string') return [];
-    return text
+    const spaced = text.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
+    return spaced
       .toLowerCase()
       .split(/[^a-z0-9]+/)
       .filter((token) => token.length > 0);
