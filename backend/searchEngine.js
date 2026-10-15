@@ -37,7 +37,12 @@ export class SearchEngine {
     // Search filenames using the inverted index
     search(query, limit = 10, mode = "AND") {
         if (!this.indexed || !query?.trim()) {
-            return [];
+            return {
+                query: query || "",
+                totalMatches: 0,
+                searchTimeMs: 0,
+                results: []
+            };
         }
 
         const startTime = performance.now();

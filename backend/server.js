@@ -11,6 +11,24 @@ app.use(express.json());
 
 const engine = new SearchEngine();
 
+// Health check and root status endpoint
+app.get("/", (req, res) => {
+    res.json({
+        status: "ok",
+        message: "Smart File Search API is running",
+        endpoints: {
+            health: "/api/health",
+            search: "/api/search?q=<query>",
+            autocomplete: "/api/autocomplete?prefix=<prefix>",
+            index: "POST /api/index"
+        }
+    });
+});
+
+app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", message: "Search API is healthy" });
+});
+
 // Scan a folder and build the index
 app.post("/api/index", async (req, res) => {
     try {
@@ -40,6 +58,12 @@ app.post("/api/index", async (req, res) => {
 app.get("/api/search", (req, res) => {
     try {
         const { q = "", limit = "10", mode = "AND" } = req.query;
+
+        if (!engine.indexed) {
+            return res.status(400).json({
+                error: "Please index a folder first by clicking 'Index Folder'!"
+            });
+        }
 
         const results = engine.search(
             q,

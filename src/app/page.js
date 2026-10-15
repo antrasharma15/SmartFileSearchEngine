@@ -54,8 +54,10 @@ export default function Home() {
                 throw new Error(data.error || "Search failed");
             }
 
-            setResults(data.results || []);
-            setMessage(`Found ${data.totalMatches} matching files.`);
+            const results = data.results || (Array.isArray(data) ? data : []);
+            const count = data.totalMatches ?? results.length;
+            setResults(results);
+            setMessage(`Found ${count} matching file${count === 1 ? '' : 's'}.`);
         } catch (error) {
             setMessage(error.message);
         } finally {
